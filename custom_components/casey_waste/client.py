@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 from aiohttp import ClientError, ClientSession, ClientTimeout
 
@@ -42,8 +43,13 @@ async def geocode(session: ClientSession, address: str) -> GeoResult:
     """Geocode `address` via Nominatim, retrying with the suburb on failure."""
     result = await _geocode_query(session, address)
     if result is None and "," in address:
-        suburb = address.split(",")[1].strip() + ", Victoria, Australia"
-        result = await _geocode_query(session, suburb)
+        # Retry with the suburb. It's the second-to-last comma segment for a
+        # full address (street, suburb, state[, postcode]); fall back to the
+        # last segment for a bare "street, suburb" so a unit/street prefix
+        # doesn't get mistaken for the suburb.
+        parts = [p.strip() for p in address.split(",") if p.strip()]
+        suburb = (parts[-2] if len(parts) >= 3 else parts[-1])
+        result = await _geocode_query(session, f"{suburb}, Victoria, Australia")
     if result is None:
         raise AddressNotFound(address)
     return result
@@ -62,7 +68,10 @@ async def _geocode_query(session: ClientSession, query: str) -> GeoResult | None
         raise CannotConnect(str(err)) from err
     if not data:
         return None
-    return GeoResult(lat=float(data[0]["lat"]), lon=float(data[0]["lon"]))
+    try:
+        return GeoResult(lat=float(data[0]["lat"]), lon=float(data[0]["lon"]))
+    except (KeyError, IndexError, TypeError, ValueError) as err:
+        raise CannotConnect(f"Unexpected geocode response: {err}") from err
 
 
 async def find_collection_area(
@@ -89,7 +98,9 @@ async def find_collection_area(
     )
 
 
-async def _area_query(session: ClientSession, params: dict) -> dict | None:
+async def _area_query(
+    session: ClientSession, params: dict[str, Any]
+) -> dict[str, Any] | None:
     try:
         async with session.get(
             CASEY_WASTE_API, params=params, timeout=_TIMEOUT
