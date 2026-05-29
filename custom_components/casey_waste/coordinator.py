@@ -30,7 +30,7 @@ class CaseyWasteData:
     week: str
     next_date: date
     bins: list[str]
-    night_before: str
+    night_before: str | None
     days_until: int
 
 
