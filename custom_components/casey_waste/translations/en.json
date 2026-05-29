@@ -1,0 +1,30 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "City of Casey Waste Collection",
+        "description": "Enter an address within the City of Casey.",
+        "data": {
+          "address": "Address"
+        }
+      }
+    },
+    "error": {
+      "address_not_found": "Address could not be found. Try including the suburb.",
+      "area_not_found": "No City of Casey collection area was found for that address.",
+      "cannot_connect": "Could not connect to the lookup services. Please try again."
+    },
+    "abort": {
+      "already_configured": "This location is already configured."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "next_collection": { "name": "Next collection" },
+      "bins_out": { "name": "Bins out" }
+    },
+    "binary_sensor": {
+      "bin_night": { "name": "Bin night" }
+    }
+  }
+}
