@@ -23,6 +23,7 @@ async def async_setup_entry(
 class NextCollectionSensor(CaseyWasteEntity, SensorEntity):
     _attr_translation_key = "next_collection"
     _attr_device_class = SensorDeviceClass.DATE
+    _attr_icon = "mdi:calendar-clock"
 
     def __init__(self, coordinator, entry) -> None:
         super().__init__(coordinator, entry)
@@ -46,6 +47,7 @@ class NextCollectionSensor(CaseyWasteEntity, SensorEntity):
 
 class BinsOutSensor(CaseyWasteEntity, SensorEntity):
     _attr_translation_key = "bins_out"
+    _attr_icon = "mdi:trash-can"
 
     def __init__(self, coordinator, entry) -> None:
         super().__init__(coordinator, entry)

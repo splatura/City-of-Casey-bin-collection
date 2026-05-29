@@ -28,3 +28,8 @@ class BinNightSensor(CaseyWasteEntity, BinarySensorEntity):
     def is_on(self) -> bool:
         # Tonight is the night before collection when the next pickup is tomorrow.
         return self.coordinator.data.days_until == 1
+
+    @property
+    def icon(self) -> str:
+        # Full bin when it's time to put it out, outline otherwise.
+        return "mdi:trash-can" if self.is_on else "mdi:trash-can-outline"
