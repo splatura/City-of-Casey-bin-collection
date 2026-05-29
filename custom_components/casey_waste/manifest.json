@@ -1,12 +1,12 @@
 {
   "domain": "casey_waste",
   "name": "City of Casey Waste Collection",
-  "codeowners": ["@github-username"],
+  "codeowners": ["@splatura"],
   "config_flow": true,
-  "documentation": "https://github.com/github-username/city-of-casey-waste-collection",
+  "documentation": "https://github.com/splatura/City-of-Casey-bin-collection",
   "integration_type": "service",
   "iot_class": "cloud_polling",
-  "issue_tracker": "https://github.com/github-username/city-of-casey-waste-collection/issues",
+  "issue_tracker": "https://github.com/splatura/City-of-Casey-bin-collection/issues",
   "requirements": [],
   "version": "0.1.0"
 }
