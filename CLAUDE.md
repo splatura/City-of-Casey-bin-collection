@@ -4,52 +4,59 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A small Python tool that tells residents of the City of Casey (Victoria, Australia) which bins to put out and when. It takes a street address, geocodes it, finds the matching council waste-collection area, and returns the collection day, fortnightly week pattern, and which bins go out.
+A **Home Assistant custom integration** (`casey_waste`) that tells residents of the City of Casey (Victoria, Australia) when their next bin collection is, which bins to put out, and when to put them out. The user configures one address; the integration geocodes it once, finds the council collection area, and exposes HA entities for display in built-in cards.
 
-Two entry points wrap the same core logic:
-- `main.py` — interactive CLI (`input()` prompt, prints a formatted report).
-- `api.py` — Flask REST API exposing the same logic over HTTP.
+The standalone CLI (`main.py`) and Flask API (`api.py`) that preceded this live in `legacy/` and are **superseded** — don't develop against them. The real project is `custom_components/casey_waste/`.
 
 ## Commands
 
 ```bash
-# Setup (venv already exists at .venv/)
+# Dev setup (venv at .venv/, Home Assistant + test tooling installed)
 source .venv/bin/activate
-pip3 install -r requirements.txt
+pip install -r requirements-dev.txt
 
-# Run the CLI
-python3 main.py
+# Tests (pytest.ini sets pythonpath=. and asyncio_mode=auto)
+.venv/bin/pytest -q                          # full suite
+.venv/bin/pytest tests/test_calc.py -v       # one file
+.venv/bin/pytest tests/test_calc.py::test_night_before -v   # one test
 
-# Run the API (binds to 0.0.0.0:5001, debug mode on)
-python3 api.py
-
-# Smoke-test the API
-curl -X POST http://localhost:5001/api/waste-collection \
-  -H "Content-Type: application/json" \
-  -d '{"address": "2 Patrick Northeast Drive, Narre Warren, VIC"}'
-curl http://localhost:5001/api/health
+# Quick import sanity check for the whole integration
+.venv/bin/python -c "import custom_components.casey_waste; print('ok')"
 ```
 
-There is no test suite, linter, or build step.
+There is no build step. Running it for real means loading `custom_components/casey_waste/` into a Home Assistant `config/custom_components/` directory and restarting HA — there is no way to fully exercise the HA wiring from the CLI; the integration tests cover it instead.
 
 ## Architecture
 
-The whole program is one function, `get_casey_waste_services(address)`, which runs a 3-step pipeline:
+Standard HA integration shape. Data flows: **config flow** (one-time geocode + area lookup) → **coordinator** (daily refresh) → **entities** (read coordinator data) → built-in HA cards.
 
-1. **Geocode** — POST the address to OpenStreetMap Nominatim (`nominatim.openstreetmap.org/search`) to get lat/lon. If the full address returns nothing, it retries with just the suburb part (text after the first comma) + ", Victoria, Australia". Postcode is scraped out of the Nominatim `display_name` string (first 4-digit token).
-2. **Find collection area** — query the City of Casey OpenDataSoft API (`data.casey.vic.gov.au/api/explore/v2.1/.../waste-collection-area/records`) with a `within_distance` geo-filter on the point. Falls back to a 1000m `geofilter.distance` search if the point isn't inside any polygon. The matched record's `collection` field looks like `"Monday_Week_2"` and is split on `_` into day and week pattern.
-3. **Compute schedule** — derive the night-before day, the current fortnightly week, and which bins go out this/next week.
+| File (`custom_components/casey_waste/`) | Responsibility |
+|---|---|
+| `const.py` | Constants: domain, API URLs, bin labels, `FORTNIGHT_ANCHOR`, config-entry keys |
+| `calc.py` | **Pure, I/O-free** date/bin logic — the unit-tested core |
+| `client.py` | **Async** `aiohttp` calls to Nominatim (geocode) + Casey dataset; raises typed exceptions |
+| `coordinator.py` | `DataUpdateCoordinator`, daily; re-queries the area and computes the schedule via `calc` |
+| `config_flow.py` | Address setup wizard; geocodes once, stores coords + day/week in the entry |
+| `entity.py` / `sensor.py` / `binary_sensor.py` | Entity base (DeviceInfo) + 2 sensors + "bin night" binary sensor |
+| `__init__.py` | `async_setup_entry`/`async_unload_entry`; builds coordinator, sets `entry.runtime_data` |
+| `translations/en.json` | Config-flow UI strings + entity names |
 
-Both external APIs are public and require no auth key. Nominatim requires a `User-Agent` header (set to `CaseyBinLookup/1.0`).
+The `calc.py` / `client.py` split is deliberate: keeping the date math pure (no HTTP, no HA) is what makes the fragile fortnight logic testable without mocking the network. Tests mirror this — `tests/test_calc.py` (pure), `tests/test_client.py` (mocked HTTP via `aioresponses`), `tests/test_config_flow.py` + `tests/test_coordinator.py` (HA harness via `pytest-homeassistant-custom-component`).
 
 ## Things to know before editing
 
-- **The core function is duplicated, not shared.** `get_casey_waste_services` is copy-pasted identically into both `main.py` and `api.py`. Any change to the lookup logic must be applied to BOTH files, or they will diverge. (If asked to refactor, extracting it into a shared module is the obvious improvement — confirm with the user first per surgical-change guidance.)
+- **Async only.** The integration runs in HA's event loop. Never use `requests` or other blocking I/O in the integration code — use `aiohttp` via the HA-provided session (`async_get_clientsession`). This is why `manifest.json` has `"requirements": []` (aiohttp is bundled with HA).
 
-- **The fortnightly "current week" is hardcoded against a reference date.** In step 3, `ref_date = datetime.date(2025, 10, 20)` anchors the Week 1 / Week 2 alternation. This is an assumption, not data from the council API — if the council's cycle shifts or the reference proves wrong, this is the line to fix. `current_week = 2 if weeks_since_ref % 2 == 0 else 1`.
+- **The verified collection model lives in `calc.py`/`const.py`.** Confirmed against the council schedule: **Rubbish (red lid) is weekly**; **Recycling (yellow) and Food & Garden/FOGO (green) are fortnightly and alternate.** The council dataset's `collection` field is `"Day_Week_N"` (e.g. `Thursday_Week_2`); the `Week_1`/`Week_2` tag is the area's fortnight phase for recycling. `bins_for_date` ties bins to an actual date: recycling when `current_week(date) == area_pattern`, else green.
 
-- **Bin mapping is a fixed convention**, also in step 3: Week 1 areas get Rubbish + Food & Garden (green lid); Week 2 areas get Rubbish + Recycling (yellow lid); Rubbish (red lid) goes out every week.
+- **The fortnight anchor is the one real risk.** The council API gives the day and fortnight *phase* but not which real-world week is current. That's resolved by a single constant, `FORTNIGHT_ANCHOR = date(2025, 10, 20)` in `const.py` (a validated Week-2 Monday). If the council shifts its cycle and dates drift by a week, that constant is the place to fix. Unit tests pin its behaviour across week boundaries.
 
-- **Port drift:** `api.py` runs on port **5001**, but `API_README.md` documents port 5000. Trust the code.
+- **Geocoding happens once, at setup** (in the config flow), and the coordinates are stored in the config entry. The coordinator re-queries only the (cheap) Casey area lookup on its daily refresh; it does not re-geocode. Note: a transient Casey-API outage at refresh time currently makes entities briefly `unavailable` until the next successful refresh (a known trade-off; the entry also stores `collection_day`/`week` which could serve as a fallback if resilience is preferred over freshness).
 
-- **Error handling convention:** the core function never raises to callers — it returns a dict with an `"error"` key on any failure. The API layer checks for that key and maps it to HTTP 400; the CLI checks for it and prints the message.
+- **Out of scope (v1):** public-holiday collection shifts. Councils delay pickups after public holidays; this is not modelled.
+
+- **Entity IDs** are derived from `has_entity_name = True` + device name `"Casey Waste"` + translation keys, producing `sensor.casey_waste_next_collection`, `sensor.casey_waste_bins_out`, `binary_sensor.casey_waste_bin_night`. The README's card YAML references these.
+
+- **Error handling convention:** `client.py` raises typed exceptions (`AddressNotFound`, `AreaNotFound`, `CannotConnect`, all `CaseyClientError`). The config flow maps them to user-facing form errors (keys must stay in sync with `translations/en.json`); the coordinator wraps failures in `UpdateFailed`.
+
+- **Before publishing to HACS:** replace the `@github-username` / repo-URL placeholders in `manifest.json`.
