@@ -65,14 +65,15 @@ city-of-casey-waste-collection/
 ### Components and responsibilities
 
 **`client.py`** — async network layer, depends only on an aiohttp session:
-- `async geocode(session, address) -> GeoResult(lat, lon, postcode, display_name)`
+- `async geocode(session, address) -> GeoResult(lat, lon)`
   - Tries the full address first; if empty, retries with the suburb portion
     (text after the first comma) + `", Victoria, Australia"`.
-  - Sends `User-Agent: CaseyBinLookup/1.0` (Nominatim requires it).
-  - Scrapes the postcode from `display_name` (first 4-digit token).
-- `async find_collection_area(session, lat, lon) -> record`
+  - Sends a `User-Agent` header (Nominatim requires it).
+- `async find_collection_area(session, lat, lon) -> AreaResult(collection, postcode)`
   - `within_distance(geo_shape, geom'POINT(lon lat)', 1m)` first, then falls
     back to a 1000 m `geofilter.distance` search.
+  - The postcode comes from the dataset record's own `postcode` field (verified
+    present), not scraped from the geocoder.
 - Raises typed exceptions — `AddressNotFound`, `AreaNotFound`, `CaseyApiError`,
   `CannotConnect` — instead of returning `{"error": ...}` dicts.
 
@@ -145,13 +146,21 @@ and mitigations:
 collections in the days after a public holiday; modelling that requires a
 holiday calendar and is explicitly excluded.
 
-## Bin mapping (fixed convention, in `calc.py` / `const.py`)
+## Bin mapping (verified against the City of Casey schedule)
 
-- Rubbish (red lid): every collection.
-- Week 1 areas: Rubbish + Food & Garden (green lid) this week; Rubbish +
-  Recycling (yellow lid) next.
-- Week 2 areas: Rubbish + Recycling (yellow lid) this week; Rubbish + Food &
-  Garden (green lid) next.
+Confirmed from the council's published schedule and the live dataset:
+- **Rubbish (red lid): weekly** — out on every collection day.
+- **Recycling (yellow) and Food & Garden / FOGO (green): fortnightly,
+  alternating.** The dataset's `Week_1`/`Week_2` tag is the area's fortnight
+  phase for recycling.
+
+Date-tied rule (in `calc.bins_for_date`): for a collection date `d` and area
+pattern `P`, the bins are `[Rubbish]` plus `Recycling` when
+`current_week(d) == P`, otherwise `Food & Garden`. This matches the validation
+point (Thu 23 Oct 2025, `current_week == 2` → a Week-2 area receives recycling).
+
+This corrects the original script, whose bin lists were derived only from the
+fixed `Week_N` tag and therefore never alternated week to week.
 
 ## Error handling
 
