@@ -49,6 +49,8 @@ def bins_for_date(day: date, week_pattern: str, anchor: date) -> list[str]:
 
     Rubbish (red) every week; recycling (yellow) when the week's fortnight
     phase matches the area's pattern, otherwise food & garden (green).
+    Returns ``[BIN_RUBBISH]`` only if ``week_pattern`` is unrecognised
+    (callers validate the pattern via ``parse_collection`` first).
     """
     bins = [BIN_RUBBISH]
     if week_pattern in ("1", "2"):

@@ -28,6 +28,9 @@ def test_current_week_anchor_is_week_2():
     assert calc.current_week(ANCHOR, ANCHOR) == 2
     assert calc.current_week(date(2025, 10, 23), ANCHOR) == 2  # Thu same week
     assert calc.current_week(date(2025, 10, 27), ANCHOR) == 1  # next Monday
+    assert calc.current_week(date(2025, 11, 3), ANCHOR) == 2  # two weeks on, cycle wraps
+    assert calc.current_week(date(2025, 10, 13), ANCHOR) == 1  # week before anchor
+    assert calc.current_week(date(2025, 10, 6), ANCHOR) == 2  # two weeks before anchor
 
 
 def test_next_collection_date_includes_today():
