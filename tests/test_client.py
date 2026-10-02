@@ -48,20 +48,28 @@ async def test_geocode_connection_error_raises():
 
 async def test_find_area_within_distance():
     with aioresponses() as m:
-        m.get(CAS, payload={"results": [{"collection": "Thursday_Week_2", "postcode": 3980}]})
+        m.get(CAS, payload={"results": [{
+            "zonename": "Thursday_2A",
+            "zonedesc": "Thursday: Recycling Week 2; Garden(FOGO) Week 1; Glass Week 1",
+            "day": "Thursday",
+            "postcode": "3977",
+        }]})
         async with ClientSession() as session:
             area = await client.find_collection_area(session, -38.1, 145.3)
-    assert area.collection == "Thursday_Week_2"
-    assert area.postcode == "3980"
+    assert area.zonename == "Thursday_2A"
+    assert area.zonedesc.startswith("Thursday: Recycling Week 2")
+    assert area.postcode == "3977"
 
 
 async def test_find_area_falls_back_to_distance():
     with aioresponses() as m:
         m.get(CAS, payload={"results": []})  # within_distance: empty
-        m.get(CAS, payload={"results": [{"collection": "Monday_Week_1", "postcode": 3805}]})
+        m.get(CAS, payload={"results": [{"zonename": "Monday_1B", "postcode": 3805}]})
         async with ClientSession() as session:
             area = await client.find_collection_area(session, -38.1, 145.3)
-    assert area.collection == "Monday_Week_1"
+    assert area.zonename == "Monday_1B"
+    assert area.zonedesc == ""
+    assert area.postcode == "3805"
 
 
 async def test_find_area_none_raises():

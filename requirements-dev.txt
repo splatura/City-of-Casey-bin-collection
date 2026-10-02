@@ -2,3 +2,6 @@ homeassistant
 pytest
 pytest-homeassistant-custom-component
 aioresponses
+# pycares >=4.9 starts a shutdown thread that trips the HA test harness thread
+# check, and pycares 5 is incompatible with the aiodns that homeassistant pins
+pycares<4.9

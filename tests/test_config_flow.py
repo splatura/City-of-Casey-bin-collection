@@ -15,6 +15,11 @@ from custom_components.casey_waste.const import DOMAIN
 
 ADDRESS = "2 Patrick Northeast Drive, Narre Warren, VIC"
 GEO = GeoResult(lat=-38.10000, lon=145.30000)
+AREA_2A = AreaResult(
+    zonename="Thursday_2A",
+    zonedesc="Thursday: Recycling Week 2; Garden(FOGO) Week 1; Glass Week 1",
+    postcode="3980",
+)
 
 
 def _patch(geocode_ret=None, geocode_exc=None, area_ret=None, area_exc=None):
@@ -43,7 +48,7 @@ async def test_happy_path_creates_entry(hass: HomeAssistant) -> None:
     result = await _run(
         hass,
         geocode_ret=GEO,
-        area_ret=AreaResult(collection="Thursday_Week_2", postcode="3980"),
+        area_ret=AREA_2A,
     )
     assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
     assert result["title"] == ADDRESS
@@ -52,6 +57,7 @@ async def test_happy_path_creates_entry(hass: HomeAssistant) -> None:
     assert data["longitude"] == GEO.lon
     assert data["collection_day"] == "Thursday"
     assert data["week"] == "2"
+    assert data["glass_week"] == "1"
     assert data["postcode"] == "3980"
 
 
@@ -77,14 +83,14 @@ async def test_unparseable_collection(hass: HomeAssistant) -> None:
     result = await _run(
         hass,
         geocode_ret=GEO,
-        area_ret=AreaResult(collection="garbage", postcode=None),
+        area_ret=AreaResult(zonename="garbage", zonedesc="", postcode=None),
     )
     assert result["type"] == data_entry_flow.FlowResultType.FORM
     assert result["errors"] == {"base": "area_not_found"}
 
 
 async def test_duplicate_aborts(hass: HomeAssistant) -> None:
-    area = AreaResult(collection="Thursday_Week_2", postcode="3980")
+    area = AREA_2A
     first = await _run(hass, geocode_ret=GEO, area_ret=area)
     assert first["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
 

@@ -39,6 +39,8 @@ class NextCollectionSensor(CaseyWasteEntity, SensorEntity):
         return {
             "collection_day": data.collection_day,
             "week": data.week,
+            "glass_week": data.glass_week,
+            "next_glass_date": data.next_glass_date,
             "days_until": data.days_until,
             "night_before": data.night_before,
             "bins": data.bins,

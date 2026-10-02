@@ -7,7 +7,7 @@ import voluptuous as vol
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from .calc import parse_collection
+from .calc import parse_zone
 from .client import (
     AddressNotFound,
     AreaNotFound,
@@ -18,6 +18,7 @@ from .client import (
 from .const import (
     CONF_ADDRESS,
     CONF_COLLECTION_DAY,
+    CONF_GLASS_WEEK,
     CONF_LATITUDE,
     CONF_LONGITUDE,
     CONF_POSTCODE,
@@ -50,7 +51,7 @@ class CaseyWasteConfigFlow(ConfigFlow, domain=DOMAIN):
             except CannotConnect:
                 errors["base"] = "cannot_connect"
             else:
-                day, week = parse_collection(area.collection)
+                day, week, glass_week = parse_zone(area.zonename, area.zonedesc)
                 if day is None or week is None:
                     errors["base"] = "area_not_found"
                 else:
@@ -64,6 +65,7 @@ class CaseyWasteConfigFlow(ConfigFlow, domain=DOMAIN):
                             CONF_LONGITUDE: geo.lon,
                             CONF_COLLECTION_DAY: day,
                             CONF_WEEK: week,
+                            CONF_GLASS_WEEK: glass_week,
                             CONF_POSTCODE: area.postcode,
                         },
                     )

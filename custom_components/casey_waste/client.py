@@ -35,7 +35,8 @@ class GeoResult:
 
 @dataclass
 class AreaResult:
-    collection: str
+    zonename: str
+    zonedesc: str
     postcode: str | None
 
 
@@ -93,7 +94,8 @@ async def find_collection_area(
         raise AreaNotFound(f"{lat},{lon}")
     postcode = record.get("postcode")
     return AreaResult(
-        collection=record.get("collection", ""),
+        zonename=record.get("zonename") or "",
+        zonedesc=record.get("zonedesc") or "",
         postcode=str(postcode) if postcode is not None else None,
     )
 

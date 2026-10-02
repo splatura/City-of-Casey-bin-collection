@@ -9,6 +9,8 @@ City of Casey (Victoria, Australia).
 - **Rubbish (red lid):** collected weekly.
 - **Recycling (yellow lid)** and **Food & Garden / FOGO (green lid):**
   collected fortnightly, alternating.
+- **Glass (purple lid):** collected every four weeks, on every second FOGO day,
+  starting November 2026 (no glass collections are shown before then).
 
 ## Installation
 
@@ -32,8 +34,10 @@ Settings → Devices & Services → **Add Integration** → search
 finds your collection area, and creates these entities:
 
 - `sensor.casey_waste_next_collection` — next collection date, with attributes
-  `collection_day`, `week`, `days_until`, `night_before`, `bins`.
-- `sensor.casey_waste_bins_out` — e.g. `Rubbish (red lid), Recycling (yellow lid)`.
+  `collection_day`, `week`, `glass_week`, `next_glass_date`, `days_until`,
+  `night_before`, `bins`.
+- `sensor.casey_waste_bins_out` — e.g. `Rubbish (red lid), Recycling (yellow lid)`
+  or `Rubbish (red lid), Food & Garden (green lid), Glass (purple lid)`.
 - `binary_sensor.casey_waste_bin_night` — `on` when tonight is the night before
   collection.
 
@@ -54,6 +58,8 @@ content: >
   **Put bins out:** {{ state_attr('sensor.casey_waste_next_collection','night_before') }} night
 
   **Bins:** {{ states('sensor.casey_waste_bins_out') }}
+
+  **Next glass:** {{ state_attr('sensor.casey_waste_next_collection','next_glass_date') }}
 ```
 
 Entities card:
@@ -74,6 +80,9 @@ entities:
 - **Fortnight anchor:** the Week 1 / Week 2 phase is derived from a reference
   date (`FORTNIGHT_ANCHOR` in `const.py`, `2025-10-20`). If the council ever
   shifts its cycle and dates look off by a week, adjust that constant.
+- **Glass anchor:** the 4-week glass phase is derived from `GLASS_ANCHOR`
+  (`2026-11-23`, a Glass Week 1 Monday) and `GLASS_START` (`2026-11-02`, the
+  first week of the glass service), both in `const.py`.
 
 ## Development
 

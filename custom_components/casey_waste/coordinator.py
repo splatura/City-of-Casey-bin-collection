@@ -11,7 +11,13 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
-from .calc import bins_for_date, next_collection_date, night_before, parse_collection
+from .calc import (
+    bins_for_date,
+    next_collection_date,
+    next_glass_date,
+    night_before,
+    parse_zone,
+)
 from .client import CaseyClientError, find_collection_area
 from .const import (
     CONF_LATITUDE,
@@ -28,10 +34,12 @@ LOGGER = logging.getLogger(__package__)
 class CaseyWasteData:
     collection_day: str
     week: str
+    glass_week: str | None
     next_date: date
     bins: list[str]
     night_before: str | None
     days_until: int
+    next_glass_date: date | None
 
 
 class CaseyWasteCoordinator(DataUpdateCoordinator[CaseyWasteData]):
@@ -55,9 +63,11 @@ class CaseyWasteCoordinator(DataUpdateCoordinator[CaseyWasteData]):
         except CaseyClientError as err:
             raise UpdateFailed(str(err)) from err
 
-        day, week = parse_collection(area.collection)
+        day, week, glass_week = parse_zone(area.zonename, area.zonedesc)
         if day is None or week is None:
-            raise UpdateFailed(f"Unparseable collection value: {area.collection!r}")
+            raise UpdateFailed(
+                f"Unparseable collection zone: {area.zonename!r} / {area.zonedesc!r}"
+            )
 
         today = dt_util.now().date()
         next_date = next_collection_date(today, day)
@@ -67,8 +77,10 @@ class CaseyWasteCoordinator(DataUpdateCoordinator[CaseyWasteData]):
         return CaseyWasteData(
             collection_day=day,
             week=week,
+            glass_week=glass_week,
             next_date=next_date,
-            bins=bins_for_date(next_date, week, FORTNIGHT_ANCHOR),
+            bins=bins_for_date(next_date, week, FORTNIGHT_ANCHOR, glass_week),
             night_before=night_before(day),
             days_until=(next_date - today).days,
+            next_glass_date=next_glass_date(today, day, glass_week),
         )

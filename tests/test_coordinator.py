@@ -11,9 +11,17 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from custom_components.casey_waste.client import AreaResult, CannotConnect
 from custom_components.casey_waste.coordinator import CaseyWasteCoordinator
 from custom_components.casey_waste.const import (
+    BIN_GLASS,
+    BIN_GREEN,
     BIN_RECYCLING,
     BIN_RUBBISH,
     DOMAIN,
+)
+
+AREA_2A = AreaResult(
+    zonename="Thursday_2A",
+    zonedesc="Thursday: Recycling Week 2; Garden(FOGO) Week 1; Glass Week 1",
+    postcode="3980",
 )
 
 
@@ -46,7 +54,7 @@ async def test_happy_path(hass: HomeAssistant) -> None:
     await hass.config.async_set_time_zone("UTC")
     entry = _entry(hass)
     coordinator = CaseyWasteCoordinator(hass, entry)
-    with _patch_area(ret=AreaResult(collection="Thursday_Week_2", postcode="3980")):
+    with _patch_area(ret=AREA_2A):
         data = await coordinator._async_update_data()
 
     assert data.collection_day == "Thursday"
@@ -55,6 +63,22 @@ async def test_happy_path(hass: HomeAssistant) -> None:
     assert data.bins == [BIN_RUBBISH, BIN_RECYCLING]
     assert data.night_before == "Wednesday"
     assert data.days_until == 3
+    assert data.glass_week == "1"
+    assert data.next_glass_date == date(2026, 11, 26)  # glass service not started yet
+
+
+@freeze_time("2026-11-24")
+async def test_glass_collection_week(hass: HomeAssistant) -> None:
+    # Council: 42 Central Parkway (Thursday_2A) first glass collection 26 Nov 2026.
+    await hass.config.async_set_time_zone("UTC")
+    entry = _entry(hass)
+    coordinator = CaseyWasteCoordinator(hass, entry)
+    with _patch_area(ret=AREA_2A):
+        data = await coordinator._async_update_data()
+
+    assert data.next_date == date(2026, 11, 26)
+    assert data.bins == [BIN_RUBBISH, BIN_GREEN, BIN_GLASS]
+    assert data.next_glass_date == date(2026, 11, 26)
 
 
 @freeze_time("2025-10-20")
@@ -72,6 +96,6 @@ async def test_unparseable_collection_raises_update_failed(
 ) -> None:
     entry = _entry(hass)
     coordinator = CaseyWasteCoordinator(hass, entry)
-    with _patch_area(ret=AreaResult(collection="garbage", postcode=None)):
+    with _patch_area(ret=AreaResult(zonename="garbage", zonedesc="", postcode=None)):
         with pytest.raises(UpdateFailed):
             await coordinator._async_update_data()
